@@ -43,7 +43,7 @@ const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const ON = [2,3,5,6];
 const KEY = "sd-desk-v2";
-const DESK_VER = "1.5";
+const DESK_VER = "1.6";
 const MEMBERS = [
   {id:"M001", short:"Forge"},
   {id:"M002", short:"Colin"},
@@ -366,7 +366,7 @@ function viewHouse(){
   const p = state().pack;
   return `<h2>House Book</h2>
     <p><button id="house-lock">Lock</button></p>
-    <div class="card"><p>${p.houseNote}</p><p class="muted">Living house. Lineage later. Do not invent relatives.</p></div>
+    <div class="card"><p>${p.houseNote}</p><p class="muted">Living house. Full 127-person archive is on the Clerk desk, not this public phone page.</p></div>
     <div class="card"><h3>Jeep</h3><p>Tires by ${p.tiresDate} · inspect by ${p.inspectDate}</p></div>
     <div class="card"><h3>Queue</h3><p>Stat Sheet Update Script / Expo. Do not bury.</p></div>`;
 }
