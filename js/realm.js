@@ -43,7 +43,7 @@ const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const ON = [2,3,5,6];
 const KEY = "sd-desk-v2";
-const DESK_VER = "2.0";
+const DESK_VER = "2.1";
 const MEMBERS = [
   {id:"M001", short:"Forge"},
   {id:"M002", short:"Colin"},
