@@ -43,7 +43,7 @@ const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const ON = [2,3,5,6];
 const KEY = "sd-desk-v2";
-const DESK_VER = "1.2";
+const DESK_VER = "1.3";
 const MEMBERS = [
   {id:"M001", short:"Forge"},
   {id:"M002", short:"Colin"},
@@ -254,12 +254,37 @@ function viewTrack(){
   const s = state();
   const mine = s.picks[MEMBER] || {};
   const tabs = `<p>${MEMBERS.map(m=>`<button data-mem="${m.id}">${m.short}</button>`).join(" ")}
-    <button data-tab="board">Board</button> <button data-tab="sheet">Sheet</button></p>
+    <button data-tab="board">Board</button> <button data-tab="sheet">Sheet</button> <button data-tab="sox">Sox</button> <button data-tab="pats">Pats</button></p>
     <p class="muted">Filing for ${MEMBER}. ${Object.keys(mine).length}/16 in.</p>`;
   if (TAB==="sheet"){
     const head = `<tr><th>Game</th>${MEMBERS.map(m=>`<th>${m.short}</th>`).join("")}</tr>`;
     const body = WEEK1.map(g=>`<tr><td>${g[3]}@${g[4]}</td>${MEMBERS.map(m=>{const p=(s.picks[m.id]||{})[g[0]]; return `<td>${p?(p==="away"?g[3]:g[4]):"·"}</td>`;}).join("")}</tr>`).join("");
     return `<h2>NerdTrack</h2>${tabs}<div class="card sheet"><table>${head}${body}</table></div>`;
+  }
+  if (TAB==="sox"){
+    return `<h2>NerdTrack</h2>${tabs}
+      <div class="card"><h3>Pulse · W36 LIVE</h3>
+        <p>Sox 4–0 this week · swept BAL 15–6 · season OPS .727 ERA 3.60</p>
+        <p>Remaining: LAA at Fenway 9/7 · 9/8 · 9/9</p>
+        <p class="muted">W37 NEXT = KC Fenway 11–13 · at TEX 15–16. Schedule only. No invented scores.</p>
+      </div>
+      <div class="card"><h3>Week OPS (boxscores)</h3>
+        <ul><li>Adley Rutschman 1.083</li><li>Jahmai Jones 1.000</li><li>Mickey Gasper .925</li><li>Eli White .875</li></ul>
+        <p class="muted">as_of 2026-09-07 · MLB Stats API</p>
+      </div>`;
+  }
+  if (TAB==="pats"){
+    return `<h2>NerdTrack</h2>${tabs}
+      <div class="card"><h3>W01 DRAFT · at SEA</h3>
+        <p>Wed 9/9 · 8:20 ET · Lumen · NBC. Leaders empty until FINAL.</p>
+        <p>Roster: 53-man + IR + PS as of 9/6. Do not invent cuts.</p>
+      </div>
+      <div class="card"><h3>Injury · 9/6 report</h3>
+        <ul><li>TreVeyon Henderson RB · DNP · ankle</li><li>Ben Brown C · DNP · knee</li><li>Christian Barmore DT · DNP · knee</li></ul>
+      </div>
+      <div class="card"><h3>Season</h3>
+        <p>W2 PIT home · W3 @ JAX · W4 @ BUF · W10 DET Munich 9:30 · W11 BYE · W17/18 times TBD.</p>
+      </div>`;
   }
   const games = WEEK1.map(g=>{
     const p = mine[g[0]];
