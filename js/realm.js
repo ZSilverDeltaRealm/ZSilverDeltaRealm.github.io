@@ -43,6 +43,7 @@ const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const ON = [2,3,5,6];
 const KEY = "sd-desk-v2";
+const DESK_VER = "1.2";
 const MEMBERS = [
   {id:"M001", short:"Forge"},
   {id:"M002", short:"Colin"},
@@ -120,8 +121,7 @@ function state(){
     expo:null
   };
   if (!s.pack.habits) s.pack.habits = [{id:"h-pet",label:"Pet food — Ozzie + Cleo",dates:[]},{id:"h-bird",label:"Kaytee bird mix",dates:[]}];
-  if (!s.pack.nights) s.pack.nights = [];
-
+  if (!s.log) s.log = [];
   return s;
 }
 
@@ -132,33 +132,38 @@ let FTAB = "guide";
 
 function fileLine(title){
   const s = state();
+  const n = ny();
+  function log(kind, text){ s.log = [{id:"lg-"+Date.now(), ymd:n.ymd, hm:n.hm, kind, text}, ...(s.log||[])].slice(0,200); }
   if (title === "/done") {
-    const n = ny();
     const first = s.inbox.find(r=>r.status==="inbox" && r.due && r.due<=n.ymd);
-    if (first) s.inbox = s.inbox.map(r => r.id===first.id ? {...r,status:"done"} : r);
+    if (first) { s.inbox = s.inbox.map(r => r.id===first.id ? {...r,status:"done"} : r); log("inbox", "Done "+first.title); }
     save(s); render(); return;
   }
   if (title.startsWith("/check ")) {
     s.check = s.check || [];
     s.check.push({id:"ck-"+Date.now(), label:title.slice(7).trim(), done:false});
+    log("check", title.slice(7).trim());
     save(s); render(); return;
   }
   if (title.startsWith("/coming ")) {
     const m = title.slice(8).trim().match(/^(\d{4}-\d{2}-\d{2})\s+(.+)/);
-    if (m) { s.pack.coming.push({date:m[1], title:m[2]}); s.pack.coming.sort((a,b)=>a.date.localeCompare(b.date)); save(s); render(); }
+    if (m) { s.pack.coming.push({date:m[1], title:m[2]}); s.pack.coming.sort((a,b)=>a.date.localeCompare(b.date)); log("coming", m[2]); save(s); render(); }
     return;
   }
   if (title.startsWith("/night ")) {
-    const ymd = ny().ymd;
-    s.pack.nights = [{date:ymd, body:title.slice(7).trim()}, ...(s.pack.nights||[]).filter(n=>n.date!==ymd)];
+    const ymd = n.ymd;
+    s.pack.nights = [{date:ymd, body:title.slice(7).trim()}, ...(s.pack.nights||[]).filter(x=>x.date!==ymd)];
+    log("night", title.slice(7).trim());
     save(s); render(); return;
   }
   if (title.startsWith("/habit ")) {
     s.pack.habits = s.pack.habits || [];
     s.pack.habits.push({id:"hb-"+Date.now(), label:title.slice(7).trim(), dates:[]});
+    log("habit", title.slice(7).trim());
     save(s); render(); return;
   }
   s.inbox = [{id:"in-"+Date.now(), title, status:"inbox"}, ...s.inbox];
+  log("inbox", title);
   save(s); render();
 }
 function setPick(mid, gid, side){
@@ -226,6 +231,7 @@ function viewToday(n){
     ${dueHtml}
     <div class="card"><h3>Habits</h3><ul>${habits}</ul></div>
     <div class="card"><h3>Night log</h3><p>${night?night.body:"One line — use /night …"}</p></div>
+    ${(p && (s.log||[]).length)?`<div class="card"><h3>Ledger</h3><ul>${s.log.slice(0,5).map(r=>`<li><span class="when">${r.hm}</span> ${r.text}</li>`).join("")}</ul></div>`:""}
     <div class="grid-2">
       <div class="card"><h3>Coming</h3><ul>${coming.map(c=>`<li><span class="when">${c.date.slice(5)}</span> — ${c.title}</li>`).join("")}</ul></div>
       <div class="card"><h3>Locked</h3><ul><li>Dad $50: No</li><li>Kass next cash ${p.kassNext}</li><li>Night desk look</li></ul></div>
@@ -331,7 +337,8 @@ function viewSlots(){
       ${ex?`<div class="card"><h3>${ex.title||"Last"} · ${ex.at||""}</h3><p class="muted">${(ex.headers||[]).length} cols · ${(ex.rows||[]).length} rows</p></div>`:""}`;
   } else {
     body = `<div class="card"><h3>To_Do Plus</h3><textarea id="plus" rows="5" placeholder="TO DO\n- "></textarea><p><button id="fileplus">File into Inbox</button></p></div>
-      <div class="card"><h3>Export pack</h3><textarea id="pack-out" rows="8" readonly></textarea><p class="muted">Copy this onto the other device.</p></div>
+      <div class="card"><h3>Export pack</h3><textarea id="pack-out" rows="8" readonly></textarea><p class="muted">Life only.</p></div>
+      <div class="card"><h3>Export full desk v${DESK_VER}</h3><textarea id="desk-out" rows="8" readonly></textarea><p class="muted">Inbox, picks, gas, ledger. Copy onto the other device.</p></div>
       <div class="card"><h3>Import pack</h3><textarea id="pack-in" rows="6" placeholder="Paste SD-Pack JSON"></textarea><p><button id="apply-pack">Apply pack</button></p></div>`;
   }
   return `<h2>Forge</h2><p>${tabs}</p>${body}`;
@@ -356,6 +363,9 @@ function render(){
   if (ROOM==="slots" && FTAB==="pack") {
     const el = document.getElementById("pack-out");
     if (el) el.value = JSON.stringify(state().pack, null, 2);
+    const de = document.getElementById("desk-out");
+    const st = state();
+    if (de) de.value = JSON.stringify({v:2, version:DESK_VER, at:ny().ymd, pack:st.pack, inbox:st.inbox, checklist:st.check, gas:st.gas||[], picks:st.picks, results:{}, log:st.log||[]}, null, 2);
   }
 }
 
@@ -458,7 +468,18 @@ document.getElementById("panel").addEventListener("click", e=>{
   if(e.target.id==="apply-pack"){
     try{
       const next=JSON.parse(document.getElementById("pack-in").value);
-      const s=state(); s.pack={...s.pack,...next}; save(s); render();
+      const s=state();
+      if (next && next.v===2 && next.pack) {
+        s.pack={...s.pack,...next.pack};
+        if (next.inbox) s.inbox=next.inbox;
+        if (next.picks) s.picks=next.picks;
+        if (next.checklist) s.check=next.checklist;
+        if (next.gas) s.gas=next.gas;
+        if (next.log) s.log=next.log;
+      } else {
+        s.pack={...s.pack,...next};
+      }
+      save(s); render();
     }catch(err){ /* leave */ }
   }
 });
