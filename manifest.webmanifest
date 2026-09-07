@@ -1,0 +1,16 @@
+{
+  "name": "Silver Delta Night Desk",
+  "short_name": "Night desk",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#070c16",
+  "theme_color": "#070c16",
+  "icons": [
+    {
+      "src": "apple-touch.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
