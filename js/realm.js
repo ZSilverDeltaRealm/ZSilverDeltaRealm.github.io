@@ -43,7 +43,7 @@ const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const ON = [2,3,5,6];
 const KEY = "sd-desk-v2";
-const DESK_VER = "1.3";
+const DESK_VER = "1.4";
 const MEMBERS = [
   {id:"M001", short:"Forge"},
   {id:"M002", short:"Colin"},
@@ -118,11 +118,30 @@ function state(){
     scripts:[{id:"sc-reset",name:"Reset morning checks",kind:"resetChecks",payload:""}],
     habits:[{id:"h-pet",label:"Pet food — Ozzie + Cleo",dates:[]},{id:"h-bird",label:"Kaytee bird mix",dates:[]}],
     nights:[],
-    expo:null
+    expo:null,
+    tests:[],
+    growth:[],
+    copy:{}
   };
   if (!s.pack.habits) s.pack.habits = [{id:"h-pet",label:"Pet food — Ozzie + Cleo",dates:[]},{id:"h-bird",label:"Kaytee bird mix",dates:[]}];
+  if (!s.pack.tests) s.pack.tests = [];
+  if (!s.pack.growth) s.pack.growth = [];
+  if (!s.pack.copy) s.pack.copy = {};
   if (!s.log) s.log = [];
   return s;
+}
+
+const COPY_DEF = {
+  realm:"Silver Delta Realm", face:"Clerk", desk:"Night desk",
+  "room.today":"Today","room.inbox":"Inbox","room.work":"Work","room.money":"Money",
+  "room.track":"NerdTrack","room.trackShort":"Track","room.house":"House","room.forge":"Forge",
+  "room.map":"Map","room.expo":"Expo"
+};
+function t(key){
+  const c = (state().pack && state().pack.copy) || {};
+  const v = c[key];
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return COPY_DEF[key] || key;
 }
 
 let ROOM = "today";
@@ -297,6 +316,30 @@ function viewTrack(){
   return `<h2>NerdTrack</h2>${tabs}<ul>${games}</ul>`;
 }
 
+function viewMap(){
+  const s = state();
+  const tests = [
+    ["t-today","Today — beat label matches the clock"],
+    ["t-cap","Capture — file a line, it lands in Inbox"],
+    ["t-sox","NerdTrack — Sox W36 is LIVE, W37 is NEXT only"],
+    ["t-pats","NerdTrack — Season has 18 weeks, W11 BYE"],
+    ["t-pack","Forge — download full desk JSON, version 1.4"],
+    ["t-phone","Phone — Add to Home Screen, import the file"]
+  ];
+  const ticks = (s.pack.tests||[]);
+  return `<h2>${t("room.map")}</h2>
+    <div class="card"><h3>${t("realm")} · ${t("face")} · v${DESK_VER}</h3>
+      <p>One desk. Sports, house, money sit under it. This phone is the same engine as the laptop. Database = this browser. Pack JSON is the file you move.</p>
+      <p class="muted">Robinhood live pull is next. Connector auth expired. Do not invent a portfolio.</p>
+    </div>
+    <div class="card"><h3>Local test ${ticks.length}/${tests.length}</h3>
+      <ul>${tests.map(([id,label])=>`<li><button data-test="${id}">${ticks.includes(id)?"✓":"○"} ${label}</button></li>`).join("")}</ul>
+    </div>
+    <div class="card"><h3>Import a desk file</h3>
+      <p><input id="desk-file" type="file" accept="application/json,.json" /></p>
+      <p class="muted">Download from laptop Forge → Pack, then pick it here.</p>
+    </div>`;
+}
 function viewWork(){
   const s = state();
   const p = s.pack;
@@ -318,7 +361,7 @@ function viewHouse(){
 function viewSlots(){
   const s = state();
   const p = s.pack;
-  const tabs = ["guide","life","bits","scripts","expo","pack"].map(t=>`<button data-ftab="${t}" class="${FTAB===t?"on":""}">${t[0].toUpperCase()+t.slice(1)}</button>`).join(" ");
+  const tabs = ["guide","life","bits","scripts","expo","words","pack"].map(t0=>`<button data-ftab="${t0}" class="${FTAB===t0?"on":""}">${t0[0].toUpperCase()+t0.slice(1)}</button>`).join(" ");
   let body = "";
   if (FTAB==="guide"){
     body = `<div class="card"><h3>What this desk is</h3><p>Clerk is the face. File first. Phone and desktop use the same site. Pack JSON moves Life/scripts between devices. Inbox and picks stay on that browser.</p></div>
@@ -360,11 +403,23 @@ function viewSlots(){
       <p><button id="apply-expo">Apply sheet</button></p>
       <p class="muted">Clerk stores what you paste. No invented stats.</p></div>
       ${ex?`<div class="card"><h3>${ex.title||"Last"} · ${ex.at||""}</h3><p class="muted">${(ex.headers||[]).length} cols · ${(ex.rows||[]).length} rows</p></div>`:""}`;
+  } else if (FTAB==="words"){
+    const copy = p.copy || {};
+    const keys = [["realm","Realm name"],["face","Face"],["desk","Desk title"],["room.today","Today"],["room.inbox","Inbox"],["room.work","Work"],["room.money","Money"],["room.track","NerdTrack"],["room.house","House"],["room.forge","Forge"],["room.map","Map"]];
+    body = `<div class="card"><h3>Rename the desk</h3>
+      <p class="muted">Empty = default. Saves on this phone. Other people keep the engine.</p>
+      ${keys.map(([k,lab])=>`<p>${lab}<br/><input data-copy="${k}" value="${String(copy[k]||"").replace(/"/g,""")}" placeholder="${COPY_DEF[k]||""}" /></p>`).join("")}
+      <p><button id="save-copy">Save words</button></p>
+    </div>`;
   } else {
     body = `<div class="card"><h3>To_Do Plus</h3><textarea id="plus" rows="5" placeholder="TO DO\n- "></textarea><p><button id="fileplus">File into Inbox</button></p></div>
       <div class="card"><h3>Export pack</h3><textarea id="pack-out" rows="8" readonly></textarea><p class="muted">Life only.</p></div>
       <div class="card"><h3>Export full desk v${DESK_VER}</h3><textarea id="desk-out" rows="8" readonly></textarea><p class="muted">Inbox, picks, gas, ledger. Copy onto the other device.</p></div>
-      <div class="card"><h3>Import pack</h3><textarea id="pack-in" rows="6" placeholder="Paste SD-Pack JSON"></textarea><p><button id="apply-pack">Apply pack</button></p></div>`;
+      <div class="card"><h3>Import pack</h3>
+        <p><input id="desk-file" type="file" accept="application/json,.json" /></p>
+        <textarea id="pack-in" rows="6" placeholder="Paste SD-Pack JSON"></textarea>
+        <p><button id="apply-pack">Apply pack</button></p>
+      </div>`;
   }
   return `<h2>Forge</h2><p>${tabs}</p>${body}`;
 }
@@ -372,8 +427,12 @@ function viewSlots(){
 function render(){
   const n = ny();
   document.getElementById("clock").innerHTML = `<div class="day">${LONG[n.weekday]}</div><div>${n.ymd} · ${clock(n.hm)} ET</div>`;
+  const brand = document.querySelector(".eyebrow");
+  if (brand && !brand.closest("#gate")) brand.textContent = `${t("realm")} · ${t("face")} · v${DESK_VER}`;
+  const h1 = document.querySelector(".sky h1");
+  if (h1) h1.textContent = t("desk");
   document.getElementById("week").innerHTML = SHORT.map((name,i)=>`<div class="wd${ON.includes(i)?" on":""}${i===n.weekday?" now":""}">${name}</div>`).join("");
-  document.getElementById("rooms").innerHTML = ["today","inbox","work","money","track","house","slots"].map(r=>`<button data-room="${r}" class="${ROOM===r?"on":""}">${r==="track"?"NerdTrack":r==="slots"?"Forge":r[0].toUpperCase()+r.slice(1)}</button>`).join("");
+  document.getElementById("rooms").innerHTML = ["today","inbox","work","money","track","house","map","slots"].map(r=>`<button data-room="${r}" class="${ROOM===r?"on":""}">${r==="track"?t("room.trackShort"):r==="slots"?t("room.forge"):r==="map"?t("room.map"):t("room."+r)}</button>`).join("");
   document.getElementById("hero").innerHTML = ROOM==="today" ? hero(n) : "";
   const panel = {
     today: () => viewToday(n),
@@ -382,6 +441,7 @@ function render(){
     money: viewMoney,
     track: viewTrack,
     house: viewHouse,
+    map: viewMap,
     slots: viewSlots,
   }[ROOM]();
   document.getElementById("panel").innerHTML = panel;
@@ -490,6 +550,22 @@ document.getElementById("panel").addEventListener("click", e=>{
       save(s); render();
     }
   }
+  const tst = e.target.closest("[data-test]");
+  if (tst) {
+    const s = state();
+    const id = tst.dataset.test;
+    s.pack.tests = s.pack.tests || [];
+    s.pack.tests = s.pack.tests.includes(id) ? s.pack.tests.filter(x=>x!==id) : [...s.pack.tests, id];
+    save(s); render();
+    return;
+  }
+  if(e.target.id==="save-copy"){
+    const s=state();
+    s.pack.copy = s.pack.copy || {};
+    document.querySelectorAll("[data-copy]").forEach(inp=>{ s.pack.copy[inp.dataset.copy]=inp.value; });
+    save(s); render();
+    return;
+  }
   if(e.target.id==="apply-pack"){
     try{
       const next=JSON.parse(document.getElementById("pack-in").value);
@@ -507,6 +583,29 @@ document.getElementById("panel").addEventListener("click", e=>{
       save(s); render();
     }catch(err){ /* leave */ }
   }
+});
+document.getElementById("panel").addEventListener("change", e=>{
+  const el = e.target;
+  if (!el || el.id !== "desk-file" || !el.files || !el.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const next = JSON.parse(String(reader.result||""));
+      const s = state();
+      if (next && next.v===2 && next.pack) {
+        s.pack={...s.pack,...next.pack};
+        if (next.inbox) s.inbox=next.inbox;
+        if (next.picks) s.picks=next.picks;
+        if (next.checklist) s.check=next.checklist;
+        if (next.gas) s.gas=next.gas;
+        if (next.log) s.log=next.log;
+      } else if (next && typeof next === "object") {
+        s.pack={...s.pack,...(next.pack||next)};
+      }
+      save(s); render();
+    } catch (err) { /* leave */ }
+  };
+  reader.readAsText(el.files[0]);
 });
 window.done = done;
 render();
