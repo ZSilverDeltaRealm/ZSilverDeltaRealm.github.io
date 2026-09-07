@@ -43,7 +43,7 @@ const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const ON = [2,3,5,6];
 const KEY = "sd-desk-v2";
-const DESK_VER = "1.7";
+const DESK_VER = "1.8";
 const MEMBERS = [
   {id:"M001", short:"Forge"},
   {id:"M002", short:"Colin"},
@@ -247,10 +247,11 @@ function viewToday(n){
       <div><span class="muted">Kass $20</span><b>${dlab(daysUntil(p.kassNext,n.ymd))}</b></div>
       <div><span class="muted">Tires</span><b>${dlab(daysUntil(p.tiresDate,n.ymd))}</b></div>
     </div>
+    <div class="card" id="wx-card"><h3>Sky</h3><p class="muted">Taunton · Little Compton — loading</p></div>
     ${dueHtml}
     <div class="card"><h3>Habits</h3><ul>${habits}</ul></div>
     <div class="card"><h3>Night log</h3><p>${night?night.body:"One line — use /night …"}</p></div>
-    ${(p && (s.log||[]).length)?`<div class="card"><h3>Ledger</h3><ul>${s.log.slice(0,5).map(r=>`<li><span class="when">${r.hm}</span> ${r.text}</li>`).join("")}</ul></div>`:""}
+    ${(p && (s.log||[]).length)?`<div class="card"><h3>Ledger</h3><ul>${s.log.slice(0,5).map(r=>`<li><span class="when">${clock(r.hm)}</span> ${r.text}</li>`).join("")}</ul></div>`:""}
     <div class="grid-2">
       <div class="card"><h3>Coming</h3><ul>${coming.map(c=>`<li><span class="when">${c.date.slice(5)}</span> — ${c.title}</li>`).join("")}</ul></div>
       <div class="card"><h3>Locked</h3><ul><li>Dad $50: No</li><li>Kass next cash ${p.kassNext}</li><li>Night desk look</li></ul></div>
@@ -349,9 +350,23 @@ function viewWork(){
     <div class="card"><h3>Morning checklist</h3><ul>${s.check.map(c=>`<li><button data-ck="${c.id}">${c.done?"✓":"○"} ${c.label}</button></li>`).join("")}</ul></div>`;
 }
 function viewMoney(){
+  if (sessionStorage.getItem("sd-vault-open") !== "1" && sessionStorage.getItem("sd-house-open") !== "1") {
+    return `<h2>Money</h2>
+      <div class="card"><h3>Vault</h3>
+        <p class="muted">Same four digits as House. Coin book stays with Mint — not on this public page.</p>
+        <p><input id="money-code" inputmode="numeric" maxlength="8" placeholder="Code" /></p>
+        <p><button id="money-go">Open</button></p>
+        <p class="muted" id="money-err"></p>
+      </div>`;
+  }
   const p = state().pack;
-  return `<h2>Money</h2><div class="card"><p>Last stub Fri 9/4 · net $1,065.60 · 401k 4%</p></div>
-    <div class="card"><h3>Kass</h3><p>${p.moneyNote}</p><p>Next cash ${p.kassNext}</p><p class="muted">Wednesday dump is confirm-only. Edit in Forge → Life.</p></div>`;
+  return `<h2>Money</h2>
+    <p><button id="money-lock">Lock</button></p>
+    <div class="card"><h3>Mint — Keeper of the Seed</h3>
+      <p>Mint strikes the seed. You keep the hammer.</p>
+      <p class="muted">Last stub Fri 9/4 · net $1,065.60 · 401k 4%. Robinhood stale. VTI $12 queued — fill blank. Coin book is on the Clerk desk, not here.</p>
+    </div>
+    <div class="card"><h3>Kass</h3><p>${p.moneyNote}</p><p>Next cash ${p.kassNext}</p></div>`;
 }
 function viewHouse(){
   if (sessionStorage.getItem("sd-house-open") !== "1") {
@@ -436,9 +451,23 @@ function viewSlots(){
   return `<h2>Forge</h2><p>${tabs}</p>${body}`;
 }
 
+function loadWx(){
+  const el = document.getElementById("wx-card");
+  if (!el) return;
+  const sites = [{n:"Taunton",lat:41.9001,lon:-71.0898},{n:"Little Compton",lat:41.51,lon:-71.1714}];
+  Promise.all(sites.map(s => fetch(`https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&daily=weather_code,temperature_2m_max,precipitation_probability_max&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=7`).then(r=>r.json()).then(j=>({s,j}))))
+    .then(rows => {
+      el.innerHTML = `<h3>Sky · week</h3>` + rows.map(({s,j}) => {
+        const d = j.daily;
+        return `<p><b>${s.n}</b></p><ul>` + d.time.map((t,i) => `<li>${t.slice(5)} · ${d.precipitation_probability_max[i]}% · ${Math.round(d.temperature_2m_max[i])}°</li>`).join("") + `</ul>`;
+      }).join("");
+    })
+    .catch(() => { el.innerHTML = `<h3>Sky</h3><p class="muted">Weather did not load.</p>`; });
+}
+
 function render(){
   const n = ny();
-  document.getElementById("clock").innerHTML = `<div class="day">${LONG[n.weekday]}</div><div>${n.ymd} · ${clock(n.hm)} ET</div>`;
+  document.getElementById("clock").innerHTML = `<div class="day">${LONG[n.weekday]}</div><div>${clock(n.hm)} ET</div>`;
   const brand = document.querySelector(".eyebrow");
   if (brand && !brand.closest("#gate")) brand.textContent = `${t("realm")} · ${t("face")} · v${DESK_VER}`;
   const h1 = document.querySelector(".sky h1");
@@ -457,6 +486,7 @@ function render(){
     slots: viewSlots,
   }[ROOM]();
   document.getElementById("panel").innerHTML = panel;
+  if (ROOM==="today") loadWx();
   if (ROOM==="slots" && FTAB==="pack") {
     const el = document.getElementById("pack-out");
     if (el) el.value = JSON.stringify(state().pack, null, 2);
@@ -552,7 +582,7 @@ document.getElementById("panel").addEventListener("click", e=>{
   }
   if(e.target.id==="house-go"){
     const v = ((document.getElementById("house-code")||{}).value||"").replace(/\D/g,"");
-    if (v === "2355") { sessionStorage.setItem("sd-house-open","1"); render(); }
+    if (v === "2355") { sessionStorage.setItem("sd-house-open","1"); sessionStorage.setItem("sd-vault-open","1"); render(); }
     else {
       const err = document.getElementById("house-err");
       if (err) err.textContent = "Wrong code.";
@@ -560,6 +590,22 @@ document.getElementById("panel").addEventListener("click", e=>{
     return;
   }
   if(e.target.id==="house-lock"){
+    sessionStorage.removeItem("sd-house-open");
+    sessionStorage.removeItem("sd-vault-open");
+    render();
+    return;
+  }
+  if(e.target.id==="money-go"){
+    const v = ((document.getElementById("money-code")||{}).value||"").replace(/\D/g,"");
+    if (v === "2355") { sessionStorage.setItem("sd-vault-open","1"); sessionStorage.setItem("sd-house-open","1"); render(); }
+    else {
+      const err = document.getElementById("money-err");
+      if (err) err.textContent = "Wrong code.";
+    }
+    return;
+  }
+  if(e.target.id==="money-lock"){
+    sessionStorage.removeItem("sd-vault-open");
     sessionStorage.removeItem("sd-house-open");
     render();
     return;
