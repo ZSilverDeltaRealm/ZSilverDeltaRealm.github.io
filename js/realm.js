@@ -43,7 +43,7 @@ const SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const ON = [2,3,5,6];
 const KEY = "sd-desk-v2";
-const DESK_VER = "1.4";
+const DESK_VER = "1.5";
 const MEMBERS = [
   {id:"M001", short:"Forge"},
   {id:"M002", short:"Colin"},
@@ -354,9 +354,21 @@ function viewMoney(){
     <div class="card"><h3>Kass</h3><p>${p.moneyNote}</p><p>Next cash ${p.kassNext}</p><p class="muted">Wednesday dump is confirm-only. Edit in Forge → Life.</p></div>`;
 }
 function viewHouse(){
+  if (sessionStorage.getItem("sd-house-open") !== "1") {
+    return `<h2>House Book</h2>
+      <div class="card"><h3>Vault</h3>
+        <p class="muted">Four digits. Screen lock — not encryption.</p>
+        <p><input id="house-code" inputmode="numeric" maxlength="8" placeholder="Code" /></p>
+        <p><button id="house-go">Open</button></p>
+        <p class="muted" id="house-err"></p>
+      </div>`;
+  }
   const p = state().pack;
-  return `<h2>House Book</h2><div class="card"><p>${p.houseNote}</p><p class="muted">Tree seed stays in the House Book pack. Edit note in Forge → Life.</p></div>
-    <div class="card"><h3>Jeep</h3><p>Tires by ${p.tiresDate} · inspect by ${p.inspectDate}</p></div>`;
+  return `<h2>House Book</h2>
+    <p><button id="house-lock">Lock</button></p>
+    <div class="card"><p>${p.houseNote}</p><p class="muted">Living house. Lineage later. Do not invent relatives.</p></div>
+    <div class="card"><h3>Jeep</h3><p>Tires by ${p.tiresDate} · inspect by ${p.inspectDate}</p></div>
+    <div class="card"><h3>Queue</h3><p>Stat Sheet Update Script / Expo. Do not bury.</p></div>`;
 }
 function viewSlots(){
   const s = state();
@@ -537,6 +549,20 @@ document.getElementById("panel").addEventListener("click", e=>{
       const m=sc.payload.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(.+)/);
       if(m){ s.pack.coming.push({date:m[1],title:m[2]}); save(s); render(); }
     }
+  }
+  if(e.target.id==="house-go"){
+    const v = ((document.getElementById("house-code")||{}).value||"").replace(/\D/g,"");
+    if (v === "2355") { sessionStorage.setItem("sd-house-open","1"); render(); }
+    else {
+      const err = document.getElementById("house-err");
+      if (err) err.textContent = "Wrong code.";
+    }
+    return;
+  }
+  if(e.target.id==="house-lock"){
+    sessionStorage.removeItem("sd-house-open");
+    render();
+    return;
   }
   if(e.target.id==="apply-expo"){
     const raw = (document.getElementById("expo-raw")||{}).value || "";
