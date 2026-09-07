@@ -240,3 +240,14 @@ footer {
 .ticks i { flex:1; background:var(--line); display:block; }
 .ticks i.on { background:var(--tide); }
 footer { margin-top:28px; color:#7f8da3; font-size:13px; }
+.card input, .card textarea, .card select {
+  min-height: 44px;
+  width: 100%;
+  margin: 4px 0 8px;
+  background: var(--desk);
+  color: var(--cream);
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  font: inherit;
+}
+.card textarea { min-height: 88px; }

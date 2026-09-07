@@ -105,12 +105,24 @@ function state(){
   if (!s.inbox) s.inbox = SEED;
   if (!s.picks) s.picks = {};
   if (!s.check) s.check = [{id:"c1",label:"Shower",done:false},{id:"c2",label:"Brush teeth",done:false},{id:"c3",label:"Work prep",done:false}];
+  if (!s.pack) s.pack = {
+    wake:"07:30", punchIn:"09:45", punchOut:"19:45", wedOut:"21:00",
+    workDays:[2,3,5,6], kassNext:"2026-09-20", tiresDate:"2026-09-27",
+    inspectDate:"2026-09-30", patsDate:"2026-09-09",
+    houseNote:"Taunton. Ozzie. Cleo. Dad · Darian · Kass.",
+    moneyNote:"Kass $10/wk · $20 every two NFL weeks. Next 2026-09-20.",
+    coming: COMING.map(c=>({date:c[0], title:c[1]})),
+    reup:["Coke","Plates","Dog food","Cat food"],
+    bits:[{id:"bit-form",title:"Google Form / To_Do Plus",body:"Paste four sections. Empty skip."},{id:"bit-stat",title:"Stat Sheet / Expo",body:"Queued. Do not invent stats."}],
+    scripts:[{id:"sc-reset",name:"Reset morning checks",kind:"resetChecks",payload:""}]
+  };
   return s;
 }
 
 let ROOM = "today";
 let MEMBER = "M001";
 let TAB = "board";
+let FTAB = "guide";
 
 function fileLine(title){
   const s = state();
@@ -150,25 +162,28 @@ function hero(n){
 
 function viewToday(n){
   const s = state();
+  const p = s.pack;
   const due = s.inbox.filter(r=>r.status==="inbox" && r.due && r.due<=n.ymd);
   const fp = s.picks.M001 || {};
   const ticks = WEEK1.map(g=>`<i class="${fp[g[0]]?"on":""}"></i>`).join("");
   const dueHtml = due.length ? `<div class="card"><h3>Due today / overdue</h3>${due.map(r=>`<div class="due-row"><span>${r.title}</span><button onclick="done('${r.id}')">Done</button></div>`).join("")}</div>` : "";
+  const coming = (p.coming||[]).filter(c=>c.date>=n.ymd).slice(0,6);
   return `<div class="rail">
-      <div><span class="muted">Pats</span><b>${dlab(daysUntil("2026-09-09",n.ymd))}</b></div>
-      <div><span class="muted">Kass $20</span><b>${dlab(daysUntil("2026-09-20",n.ymd))}</b></div>
-      <div><span class="muted">Tires</span><b>${dlab(daysUntil("2026-09-27",n.ymd))}</b></div>
+      <div><span class="muted">Pats</span><b>${dlab(daysUntil(p.patsDate,n.ymd))}</b></div>
+      <div><span class="muted">Kass $20</span><b>${dlab(daysUntil(p.kassNext,n.ymd))}</b></div>
+      <div><span class="muted">Tires</span><b>${dlab(daysUntil(p.tiresDate,n.ymd))}</b></div>
     </div>
     ${dueHtml}
     <div class="grid-2">
-      <div class="card"><h3>Coming</h3><ul>${COMING.filter(c=>c[0]>=n.ymd).slice(0,6).map(c=>`<li><span class="when">${c[0].slice(5)}</span> — ${c[1]}</li>`).join("")}</ul></div>
-      <div class="card"><h3>Locked</h3><ul><li>Dad $50: No</li><li>Kass next cash 2026-09-20</li><li>Night desk look</li></ul></div>
+      <div class="card"><h3>Coming</h3><ul>${coming.map(c=>`<li><span class="when">${c.date.slice(5)}</span> — ${c.title}</li>`).join("")}</ul></div>
+      <div class="card"><h3>Locked</h3><ul><li>Dad $50: No</li><li>Kass next cash ${p.kassNext}</li><li>Night desk look</li></ul></div>
     </div>
     <div class="card"><h3>NerdTrack · Week 1</h3>
       <div class="ticks">${ticks}</div>
-      <p>Pats at Seahawks Wed 8:20 PM. Your pick: <b>${fp["401872656"]?NAMES[fp["401872656"]==="away"?"NE":"SEA"]:"none yet"}</b></p>
+      <p>Pats at Seahawks. Your pick: <b>${fp["401872656"]?NAMES[fp["401872656"]==="away"?"NE":"SEA"]:"none yet"}</b></p>
       <p><a href="#" data-go="track">Open the pool board</a></p>
-    </div>`;
+    </div>
+    <div class="card"><h3>Forge</h3><p class="muted">Guide, Life, Bits, Scripts, Pack — customize in the app. Same URL on phone and desktop.</p><p><a href="#" data-go="slots">Open Forge</a></p></div>`;
 }
 
 function viewInbox(){
@@ -201,26 +216,73 @@ function viewTrack(){
 
 function viewWork(){
   const s = state();
-  return `<h2>Work</h2><div class="card"><p>On: Tue Wed Fri Sat · Off: Sun Mon Thu</p><p>10-hr 9:45 AM–7:45 PM · Wed close 9:00 PM</p></div>
+  const p = s.pack;
+  const names=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const on = names.filter((_,i)=>p.workDays.includes(i)).join(" · ");
+  return `<h2>Work</h2><div class="card"><p>On: ${on}</p><p>Punch ${p.punchIn}–${p.punchOut} · Wed close ${p.wedOut} · Wake ${p.wake}</p><p class="muted">Edit in Forge → Life.</p></div>
     <div class="card"><h3>Morning checklist</h3><ul>${s.check.map(c=>`<li><button data-ck="${c.id}">${c.done?"✓":"○"} ${c.label}</button></li>`).join("")}</ul></div>`;
 }
 function viewMoney(){
+  const p = state().pack;
   return `<h2>Money</h2><div class="card"><p>Last stub Fri 9/4 · net $1,065.60 · 401k 4%</p></div>
-    <div class="card"><h3>Kass</h3><p>$20 every two NFL weeks. Paid W1+W2 9/6. Next 9/20.</p><p class="muted">Wednesday dump is confirm-only.</p></div>`;
+    <div class="card"><h3>Kass</h3><p>${p.moneyNote}</p><p>Next cash ${p.kassNext}</p><p class="muted">Wednesday dump is confirm-only. Edit in Forge → Life.</p></div>`;
 }
 function viewHouse(){
-  return `<h2>House Book</h2><div class="card"><p>Taunton. Ozzie. Cleo. Dad · Darian · Kass.</p><p class="muted">Tree seed stays in the House Book pack. No invented relatives.</p></div>
-    <div class="card"><h3>Jeep</h3><p>Tires by 9/27 · inspect by 9/30</p></div>`;
+  const p = state().pack;
+  return `<h2>House Book</h2><div class="card"><p>${p.houseNote}</p><p class="muted">Tree seed stays in the House Book pack. Edit note in Forge → Life.</p></div>
+    <div class="card"><h3>Jeep</h3><p>Tires by ${p.tiresDate} · inspect by ${p.inspectDate}</p></div>`;
 }
 function viewSlots(){
-  return `<h2>Open slots</h2><div class="card"><h3>To_Do Plus</h3><textarea id="plus" rows="5" placeholder="TO DO\n- "></textarea><p><button id="fileplus">File into Inbox</button></p></div>`;
+  const s = state();
+  const p = s.pack;
+  const tabs = ["guide","life","bits","scripts","pack"].map(t=>`<button data-ftab="${t}" class="${FTAB===t?"on":""}">${t[0].toUpperCase()+t.slice(1)}</button>`).join(" ");
+  let body = "";
+  if (FTAB==="guide"){
+    body = `<div class="card"><h3>What this desk is</h3><p>Clerk is the face. File first. Phone and desktop use the same site. Pack JSON moves Life/scripts between devices. Inbox and picks stay on that browser.</p></div>
+      <div class="card"><h3>Where to edit</h3><ul><li>Life — wake, punch, work days, Kass, tires, coming dates</li><li>Bits — named open slots</li><li>Scripts — saved functions (file lines, add date, reset checks)</li><li>Pack — copy/paste JSON to the other device</li></ul></div>
+      <div class="card"><h3>How you brief Clerk</h3><p>Name the room. Name the field. Give the exact text or date. Sunday is the build day.</p></div>`;
+  } else if (FTAB==="life"){
+    body = `<div class="card"><h3>Clock</h3>
+      <p>Wake <input id="lf-wake" value="${p.wake}" /></p>
+      <p>Punch in <input id="lf-in" value="${p.punchIn}" /></p>
+      <p>10-hr out <input id="lf-out" value="${p.punchOut}" /></p>
+      <p>Wed close <input id="lf-wed" value="${p.wedOut}" /></p>
+      <p>Kass next <input id="lf-kass" value="${p.kassNext}" /></p>
+      <p>Tires <input id="lf-tires" value="${p.tiresDate}" /></p>
+      <p><button id="save-life">Save Life</button></p></div>
+      <div class="card"><h3>Coming</h3>
+        <p><input id="ev-date" type="date" /> <input id="ev-title" placeholder="Title" /> <button id="add-coming">Add</button></p>
+        <ul>${p.coming.map((c,i)=>`<li><span class="when">${c.date}</span> ${c.title} <button data-dropc="${i}">Drop</button></li>`).join("")}</ul>
+      </div>
+      <div class="card"><h3>Notes</h3>
+        <p>House</p><textarea id="lf-house" rows="3">${p.houseNote}</textarea>
+        <p>Money</p><textarea id="lf-money" rows="3">${p.moneyNote}</textarea>
+        <p><button id="save-life2">Save notes</button></p>
+      </div>`;
+  } else if (FTAB==="bits"){
+    body = p.bits.map(b=>`<div class="card"><h3>${b.title}</h3><textarea data-bit="${b.id}" rows="4">${b.body}</textarea><p><button data-savebit="${b.id}">Save bit</button></p></div>`).join("")
+      + `<div class="card"><h3>New bit</h3><p><input id="nb-title" placeholder="Name" /></p><textarea id="nb-body" rows="3"></textarea><p><button id="add-bit">Add bit</button></p></div>`;
+  } else if (FTAB==="scripts"){
+    body = `<div class="card"><h3>Run</h3>${p.scripts.map(sc=>`<p>${sc.name} <button data-runsc="${sc.id}">Run</button></p>`).join("")}<p class="muted" id="sc-msg"></p></div>
+      <div class="card"><h3>New script</h3>
+        <p><input id="ns-name" placeholder="Name" /></p>
+        <p><select id="ns-kind"><option value="fileInbox">File inbox lines</option><option value="addComing">Add coming date</option><option value="addCheck">Add checklist</option><option value="resetChecks">Reset checks</option><option value="note">Saved note</option></select></p>
+        <textarea id="ns-pay" rows="4" placeholder="Payload"></textarea>
+        <p><button id="add-script">Save script</button></p>
+      </div>`;
+  } else {
+    body = `<div class="card"><h3>To_Do Plus</h3><textarea id="plus" rows="5" placeholder="TO DO\n- "></textarea><p><button id="fileplus">File into Inbox</button></p></div>
+      <div class="card"><h3>Export pack</h3><textarea id="pack-out" rows="8" readonly></textarea><p class="muted">Copy this onto the other device.</p></div>
+      <div class="card"><h3>Import pack</h3><textarea id="pack-in" rows="6" placeholder="Paste SD-Pack JSON"></textarea><p><button id="apply-pack">Apply pack</button></p></div>`;
+  }
+  return `<h2>Forge</h2><p>${tabs}</p>${body}`;
 }
 
 function render(){
   const n = ny();
   document.getElementById("clock").innerHTML = `<div class="day">${LONG[n.weekday]}</div><div>${n.ymd} · ${clock(n.hm)} ET</div>`;
   document.getElementById("week").innerHTML = SHORT.map((name,i)=>`<div class="wd${ON.includes(i)?" on":""}${i===n.weekday?" now":""}">${name}</div>`).join("");
-  document.getElementById("rooms").innerHTML = ["today","inbox","work","money","track","house","slots"].map(r=>`<button data-room="${r}" class="${ROOM===r?"on":""}">${r==="track"?"NerdTrack":r[0].toUpperCase()+r.slice(1)}</button>`).join("");
+  document.getElementById("rooms").innerHTML = ["today","inbox","work","money","track","house","slots"].map(r=>`<button data-room="${r}" class="${ROOM===r?"on":""}">${r==="track"?"NerdTrack":r==="slots"?"Forge":r[0].toUpperCase()+r.slice(1)}</button>`).join("");
   document.getElementById("hero").innerHTML = ROOM==="today" ? hero(n) : "";
   const panel = {
     today: () => viewToday(n),
@@ -232,6 +294,10 @@ function render(){
     slots: viewSlots,
   }[ROOM]();
   document.getElementById("panel").innerHTML = panel;
+  if (ROOM==="slots" && FTAB==="pack") {
+    const el = document.getElementById("pack-out");
+    if (el) el.value = JSON.stringify(state().pack, null, 2);
+  }
 }
 
 document.getElementById("rooms").addEventListener("click", e=>{
@@ -246,6 +312,7 @@ document.getElementById("panel").addEventListener("click", e=>{
   const go = e.target.closest("[data-go]"); if(go){ e.preventDefault(); ROOM=go.dataset.go; render(); return; }
   const mem = e.target.closest("[data-mem]"); if(mem){ MEMBER=mem.dataset.mem; render(); return; }
   const tab = e.target.closest("[data-tab]"); if(tab){ TAB=tab.dataset.tab; render(); return; }
+  const ftab = e.target.closest("[data-ftab]"); if(ftab){ FTAB=ftab.dataset.ftab; render(); return; }
   const pk = e.target.closest("[data-gid]"); if(pk){ setPick(MEMBER, pk.dataset.gid, pk.dataset.side); return; }
   const ck = e.target.closest("[data-ck]"); if(ck){
     const s=state(); s.check=s.check.map(c=>c.id===ck.dataset.ck?{...c,done:!c.done}:c); save(s); render();
@@ -254,6 +321,63 @@ document.getElementById("panel").addEventListener("click", e=>{
     const text = document.getElementById("plus").value;
     const lines = text.split(/\n/).map(x=>x.replace(/^[-*]\s*/,"").trim()).filter(x=>x && !/^(TO DO|NOTES|BUDGET|DATES)/i.test(x));
     lines.forEach(fileLine);
+  }
+  if(e.target.id==="save-life" || e.target.id==="save-life2"){
+    const s=state();
+    const g=id=> (document.getElementById(id)||{}).value;
+    if (document.getElementById("lf-wake")) {
+      s.pack.wake=g("lf-wake"); s.pack.punchIn=g("lf-in"); s.pack.punchOut=g("lf-out");
+      s.pack.wedOut=g("lf-wed"); s.pack.kassNext=g("lf-kass"); s.pack.tiresDate=g("lf-tires");
+    }
+    if (document.getElementById("lf-house")) {
+      s.pack.houseNote=g("lf-house"); s.pack.moneyNote=g("lf-money");
+    }
+    save(s); render();
+  }
+  if(e.target.id==="add-coming"){
+    const date=document.getElementById("ev-date").value;
+    const title=document.getElementById("ev-title").value.trim();
+    if(date&&title){ const s=state(); s.pack.coming.push({date,title}); s.pack.coming.sort((a,b)=>a.date.localeCompare(b.date)); save(s); render(); }
+  }
+  const dropc=e.target.closest("[data-dropc]");
+  if(dropc){ const s=state(); s.pack.coming.splice(Number(dropc.dataset.dropc),1); save(s); render(); }
+  const savebit=e.target.closest("[data-savebit]");
+  if(savebit){
+    const ta=document.querySelector(`[data-bit="${savebit.dataset.savebit}"]`);
+    const s=state();
+    s.pack.bits=s.pack.bits.map(b=>b.id===savebit.dataset.savebit?{...b,body:ta.value}:b);
+    save(s); render();
+  }
+  if(e.target.id==="add-bit"){
+    const title=document.getElementById("nb-title").value.trim();
+    const body=document.getElementById("nb-body").value;
+    if(title){ const s=state(); s.pack.bits.push({id:"bit-"+Date.now(),title,body}); save(s); render(); }
+  }
+  if(e.target.id==="add-script"){
+    const name=document.getElementById("ns-name").value.trim();
+    const kind=document.getElementById("ns-kind").value;
+    const payload=document.getElementById("ns-pay").value;
+    if(name){ const s=state(); s.pack.scripts.push({id:"sc-"+Date.now(),name,kind,payload}); save(s); render(); }
+  }
+  const runsc=e.target.closest("[data-runsc]");
+  if(runsc){
+    const s=state();
+    const sc=s.pack.scripts.find(x=>x.id===runsc.dataset.runsc);
+    if(sc && sc.kind==="resetChecks"){ s.check=s.check.map(c=>({...c,done:false})); save(s); render(); }
+    if(sc && sc.kind==="addCheck" && sc.payload.trim()){ s.check.push({id:"ck-"+Date.now(),label:sc.payload.trim(),done:false}); save(s); render(); }
+    if(sc && sc.kind==="fileInbox"){
+      sc.payload.split(/\n/).map(x=>x.replace(/^[-*]\s*/,"").trim()).filter(x=>x).forEach(fileLine);
+    }
+    if(sc && sc.kind==="addComing"){
+      const m=sc.payload.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(.+)/);
+      if(m){ s.pack.coming.push({date:m[1],title:m[2]}); save(s); render(); }
+    }
+  }
+  if(e.target.id==="apply-pack"){
+    try{
+      const next=JSON.parse(document.getElementById("pack-in").value);
+      const s=state(); s.pack={...s.pack,...next}; save(s); render();
+    }catch(err){ /* leave */ }
   }
 });
 window.done = done;
