@@ -113,9 +113,15 @@ function state(){
     moneyNote:"Kass $10/wk · $20 every two NFL weeks. Next 2026-09-20.",
     coming: COMING.map(c=>({date:c[0], title:c[1]})),
     reup:["Coke","Plates","Dog food","Cat food"],
-    bits:[{id:"bit-form",title:"Google Form / To_Do Plus",body:"Paste four sections. Empty skip."},{id:"bit-stat",title:"Stat Sheet / Expo",body:"Queued. Do not invent stats."}],
-    scripts:[{id:"sc-reset",name:"Reset morning checks",kind:"resetChecks",payload:""}]
+    bits:[{id:"bit-form",title:"Google Form / To_Do Plus",body:"Paste four sections. Empty skip."},{id:"bit-stat",title:"Stat Sheet / Expo",body:"Paste in Forge → Expo. Do not invent stats."}],
+    scripts:[{id:"sc-reset",name:"Reset morning checks",kind:"resetChecks",payload:""}],
+    habits:[{id:"h-pet",label:"Pet food — Ozzie + Cleo",dates:[]},{id:"h-bird",label:"Kaytee bird mix",dates:[]}],
+    nights:[],
+    expo:null
   };
+  if (!s.pack.habits) s.pack.habits = [{id:"h-pet",label:"Pet food — Ozzie + Cleo",dates:[]},{id:"h-bird",label:"Kaytee bird mix",dates:[]}];
+  if (!s.pack.nights) s.pack.nights = [];
+
   return s;
 }
 
@@ -126,6 +132,32 @@ let FTAB = "guide";
 
 function fileLine(title){
   const s = state();
+  if (title === "/done") {
+    const n = ny();
+    const first = s.inbox.find(r=>r.status==="inbox" && r.due && r.due<=n.ymd);
+    if (first) s.inbox = s.inbox.map(r => r.id===first.id ? {...r,status:"done"} : r);
+    save(s); render(); return;
+  }
+  if (title.startsWith("/check ")) {
+    s.check = s.check || [];
+    s.check.push({id:"ck-"+Date.now(), label:title.slice(7).trim(), done:false});
+    save(s); render(); return;
+  }
+  if (title.startsWith("/coming ")) {
+    const m = title.slice(8).trim().match(/^(\d{4}-\d{2}-\d{2})\s+(.+)/);
+    if (m) { s.pack.coming.push({date:m[1], title:m[2]}); s.pack.coming.sort((a,b)=>a.date.localeCompare(b.date)); save(s); render(); }
+    return;
+  }
+  if (title.startsWith("/night ")) {
+    const ymd = ny().ymd;
+    s.pack.nights = [{date:ymd, body:title.slice(7).trim()}, ...(s.pack.nights||[]).filter(n=>n.date!==ymd)];
+    save(s); render(); return;
+  }
+  if (title.startsWith("/habit ")) {
+    s.pack.habits = s.pack.habits || [];
+    s.pack.habits.push({id:"hb-"+Date.now(), label:title.slice(7).trim(), dates:[]});
+    save(s); render(); return;
+  }
   s.inbox = [{id:"in-"+Date.now(), title, status:"inbox"}, ...s.inbox];
   save(s); render();
 }
@@ -141,20 +173,33 @@ function done(id){
   save(s); render();
 }
 
+function toMin(hm){ const [h,m]=hm.split(":").map(Number); return h*60+m; }
+function beatOf(n, p){
+  const now = toMin(n.hm);
+  const wake = toMin(p.wake||"07:30");
+  const pin = toMin(p.punchIn||"09:45");
+  const work = (p.workDays||ON).includes(n.weekday);
+  const out = toMin(n.weekday===3 ? (p.wedOut||"21:00") : (p.punchOut||"19:45"));
+  if (now < wake) return {label:"Night watch", kicker: work?"Work morning coming":"Home morning coming", hint:"File it. Sleep it.", next:"Wake "+clock(p.wake||"07:30")};
+  if (work && now < pin) return {label:"Morning prep", kicker:"KAC van", hint:"Checks, then punch.", next:"Punch "+clock(p.punchIn||"09:45")};
+  if (work && now < out) return {label: n.weekday===3?"Dispatch close":"On shift", kicker:"KAC van", hint:"Night desk after punch.", next:"Out "+clock(n.weekday===3?(p.wedOut||"21:00"):(p.punchOut||"19:45"))};
+  if (now >= 22*60) return {label:"Wind down", kicker: work?"After punch":"Home night", hint:"Lights out midnight if work tomorrow, else 1–2 AM.", next:"Sleep"};
+  if (work) return {label:"Night desk", kicker:"After punch", hint:"Inbox, picks, house.", next:"Wind down"};
+  return {label:"Home block", kicker:"Day off", hint:"Desk, yard, realm. No punch.", next:"Night"};
+}
 function hero(n){
-  const work = ON.includes(n.weekday);
-  const tomorrow = (n.weekday+1)%7;
-  const sleep = ON.includes(tomorrow) ? "Midnight" : "1–2 AM";
   const s = state();
+  const p = s.pack;
+  const b = beatOf(n, p);
   const due = s.inbox.filter(r=>r.status==="inbox" && r.due && r.due<=n.ymd);
   const fp = s.picks.M001 || {};
   const pn = Object.keys(fp).length;
-  return `<span class="kicker">${work?"KAC van":"Home block"}</span>
-    <h2>${work?"Work day":"Day off"}</h2>
-    <p class="muted">${work?"Punch 9:45 AM → 7:45 PM":"No punch. Desk, yard, realm."}</p>
+  return `<span class="kicker">${b.kicker}</span>
+    <h2>${b.label}</h2>
+    <p class="muted">${b.hint}</p>
     <div class="hero-grid">
-      <div class="stat"><span>Wake</span><b>7:30 AM</b></div>
-      <div class="stat"><span>Tonight</span><b>${sleep}</b></div>
+      <div class="stat"><span>Next</span><b>${b.next}</b></div>
+      <div class="stat"><span>Wake</span><b>${clock(p.wake||"07:30")}</b></div>
       <div class="stat"><span>Due now</span><b>${due.length}</b></div>
       <div class="stat"><span>Forge picks</span><b>${pn}/16</b></div>
     </div>`;
@@ -168,12 +213,19 @@ function viewToday(n){
   const ticks = WEEK1.map(g=>`<i class="${fp[g[0]]?"on":""}"></i>`).join("");
   const dueHtml = due.length ? `<div class="card"><h3>Due today / overdue</h3>${due.map(r=>`<div class="due-row"><span>${r.title}</span><button onclick="done('${r.id}')">Done</button></div>`).join("")}</div>` : "";
   const coming = (p.coming||[]).filter(c=>c.date>=n.ymd).slice(0,6);
+  const habits = (p.habits||[]).map(h=>{
+    const on = (h.dates||[]).includes(n.ymd);
+    return `<li><button data-habit="${h.id}">${on?"✓":"○"} ${h.label}</button></li>`;
+  }).join("");
+  const night = (p.nights||[]).find(x=>x.date===n.ymd);
   return `<div class="rail">
       <div><span class="muted">Pats</span><b>${dlab(daysUntil(p.patsDate,n.ymd))}</b></div>
       <div><span class="muted">Kass $20</span><b>${dlab(daysUntil(p.kassNext,n.ymd))}</b></div>
       <div><span class="muted">Tires</span><b>${dlab(daysUntil(p.tiresDate,n.ymd))}</b></div>
     </div>
     ${dueHtml}
+    <div class="card"><h3>Habits</h3><ul>${habits}</ul></div>
+    <div class="card"><h3>Night log</h3><p>${night?night.body:"One line — use /night …"}</p></div>
     <div class="grid-2">
       <div class="card"><h3>Coming</h3><ul>${coming.map(c=>`<li><span class="when">${c.date.slice(5)}</span> — ${c.title}</li>`).join("")}</ul></div>
       <div class="card"><h3>Locked</h3><ul><li>Dad $50: No</li><li>Kass next cash ${p.kassNext}</li><li>Night desk look</li></ul></div>
@@ -183,7 +235,7 @@ function viewToday(n){
       <p>Pats at Seahawks. Your pick: <b>${fp["401872656"]?NAMES[fp["401872656"]==="away"?"NE":"SEA"]:"none yet"}</b></p>
       <p><a href="#" data-go="track">Open the pool board</a></p>
     </div>
-    <div class="card"><h3>Forge</h3><p class="muted">Guide, Life, Bits, Scripts, Pack — customize in the app. Same URL on phone and desktop.</p><p><a href="#" data-go="slots">Open Forge</a></p></div>`;
+    <div class="card"><h3>Forge</h3><p class="muted">Guide, Life, Bits, Scripts, Expo, Pack — customize in the app. Same URL on phone and desktop.</p><p><a href="#" data-go="slots">Open Forge</a></p></div>`;
 }
 
 function viewInbox(){
@@ -235,7 +287,7 @@ function viewHouse(){
 function viewSlots(){
   const s = state();
   const p = s.pack;
-  const tabs = ["guide","life","bits","scripts","pack"].map(t=>`<button data-ftab="${t}" class="${FTAB===t?"on":""}">${t[0].toUpperCase()+t.slice(1)}</button>`).join(" ");
+  const tabs = ["guide","life","bits","scripts","expo","pack"].map(t=>`<button data-ftab="${t}" class="${FTAB===t?"on":""}">${t[0].toUpperCase()+t.slice(1)}</button>`).join(" ");
   let body = "";
   if (FTAB==="guide"){
     body = `<div class="card"><h3>What this desk is</h3><p>Clerk is the face. File first. Phone and desktop use the same site. Pack JSON moves Life/scripts between devices. Inbox and picks stay on that browser.</p></div>
@@ -266,10 +318,17 @@ function viewSlots(){
     body = `<div class="card"><h3>Run</h3>${p.scripts.map(sc=>`<p>${sc.name} <button data-runsc="${sc.id}">Run</button></p>`).join("")}<p class="muted" id="sc-msg"></p></div>
       <div class="card"><h3>New script</h3>
         <p><input id="ns-name" placeholder="Name" /></p>
-        <p><select id="ns-kind"><option value="fileInbox">File inbox lines</option><option value="addComing">Add coming date</option><option value="addCheck">Add checklist</option><option value="resetChecks">Reset checks</option><option value="note">Saved note</option></select></p>
+        <p><select id="ns-kind"><option value="fileInbox">File inbox lines</option><option value="addComing">Add coming date</option><option value="addCheck">Add checklist</option><option value="resetChecks">Reset checks</option><option value="expo">Apply stat sheet</option><option value="note">Saved note</option></select></p>
         <textarea id="ns-pay" rows="4" placeholder="Payload"></textarea>
         <p><button id="add-script">Save script</button></p>
       </div>`;
+  } else if (FTAB==="expo"){
+    const ex = p.expo;
+    body = `<div class="card"><h3>Paste a sheet</h3>
+      <textarea id="expo-raw" rows="7" placeholder="player,stat,value"></textarea>
+      <p><button id="apply-expo">Apply sheet</button></p>
+      <p class="muted">Clerk stores what you paste. No invented stats.</p></div>
+      ${ex?`<div class="card"><h3>${ex.title||"Last"} · ${ex.at||""}</h3><p class="muted">${(ex.headers||[]).length} cols · ${(ex.rows||[]).length} rows</p></div>`:""}`;
   } else {
     body = `<div class="card"><h3>To_Do Plus</h3><textarea id="plus" rows="5" placeholder="TO DO\n- "></textarea><p><button id="fileplus">File into Inbox</button></p></div>
       <div class="card"><h3>Export pack</h3><textarea id="pack-out" rows="8" readonly></textarea><p class="muted">Copy this onto the other device.</p></div>
@@ -316,6 +375,17 @@ document.getElementById("panel").addEventListener("click", e=>{
   const pk = e.target.closest("[data-gid]"); if(pk){ setPick(MEMBER, pk.dataset.gid, pk.dataset.side); return; }
   const ck = e.target.closest("[data-ck]"); if(ck){
     const s=state(); s.check=s.check.map(c=>c.id===ck.dataset.ck?{...c,done:!c.done}:c); save(s); render();
+  }
+  const hb = e.target.closest("[data-habit]");
+  if(hb){
+    const s=state();
+    const ymd = ny().ymd;
+    s.pack.habits = (s.pack.habits||[]).map(h=>{
+      if(h.id!==hb.dataset.habit) return h;
+      const on = (h.dates||[]).includes(ymd);
+      return {...h, dates: on ? h.dates.filter(d=>d!==ymd) : [...(h.dates||[]), ymd]};
+    });
+    save(s); render();
   }
   if(e.target.id==="fileplus"){
     const text = document.getElementById("plus").value;
@@ -371,6 +441,18 @@ document.getElementById("panel").addEventListener("click", e=>{
     if(sc && sc.kind==="addComing"){
       const m=sc.payload.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(.+)/);
       if(m){ s.pack.coming.push({date:m[1],title:m[2]}); save(s); render(); }
+    }
+  }
+  if(e.target.id==="apply-expo"){
+    const raw = (document.getElementById("expo-raw")||{}).value || "";
+    const lines = raw.split(/\n/).map(x=>x.trimEnd()).filter(x=>x.trim());
+    if(lines.length){
+      const delim = lines[0].includes("\t") ? "\t" : ",";
+      const headers = lines[0].split(delim);
+      const rows = lines.slice(1,201).map(l=>l.split(delim));
+      const s=state();
+      s.pack.expo = { at: ny().ymd, title: "Phone dump", headers, rows, note:"" };
+      save(s); render();
     }
   }
   if(e.target.id==="apply-pack"){
